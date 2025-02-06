@@ -3,8 +3,13 @@ from lexer import *
 
 #Parser object keeps track of current troken and checks if the code matches the grammar.
 class Parser:
-    def __init__(self, lexer):
+    def __init__(self, lexer, emitter):
         self.lexer = lexer
+        self.emitter = emitter
+
+        self.symbols = set() # All variables declared so far
+        self.labels_declared = set() # All labels declared so far
+        self.labels_gotod = set() # All labels goto'ed
 
         self.cur_token = None
         self.peek_token = None
@@ -38,26 +43,57 @@ class Parser:
 
     # program ::= {statement}
     def program(self):
-        print("PROGRAM")
+        self.emitter.header_line("#include <stdio.h>")
+        self.emitter.header_line("int main(void){")
 
-        #Parse all statements in the program
+        # Skip excess newlines
+        while self.check_token(TokenType.NEWLINE):
+            self.next_token()
+
+        # Parse all statements in the program
         while not self.check_token(TokenType.EOF):
             self.statement()
 
+        self.emitter.emit_line("return 0;")
+        self.emitter.emit_line("}")
 
-    #Define grammar rules
+        # Verify each label referenced in a GOTO is declared
+        for label in self.labels_gotod:
+            if label not in self.labels_declared:
+                self.abort("Attempting to GOTO undeclared label: " + label)
+
+
+    # Define grammar rules
     def statement(self):
-        #Check first token to see what kind of statement it is
+        """
+        - Check first token to see what kind of statement it is
+        """
+        #### PRINT (expression | string) ####
         if self.check_token(TokenType.PRINT):
-            print("STATEMENT-PRINT")
             self.next_token()
 
             if self.check_token(TokenType.STRING):
-                #Simple string
+                # Simple string
+                self.emitter.emit_line("printf(\"" + self.cur_token.text + "\\n\");")
                 self.next_token()
             else:
-                #Expect an expression
+                # Expect an expression
+                self.emitter.emit("printf(\"%" + ".2f\\n\", (float)(")
                 self.expression()
+                self.emitter.emit_line("));")
+
+        #### IF comparison "THEN" block "ENDIF"
+        elif self.check_token(TokenType.IF):
+            self.next_token()
+            self.emitter.emit("if(")
+            self.comparison()
+
+            self.match(TokenType.THEN)
+            self.nl()
+            self.emitter.emit_line("){")
+
+            # Zero or more statements in body
+            while not self.check_token(TokenType.ENDIF):
 
         #Newline
         self.nl()
@@ -65,7 +101,6 @@ class Parser:
 
     def nl(self):
         print("NEWLINE")
-
         #Require at least one newline
         self.match(TokenType.NEWLINE)
         #Allow extra newlines too
