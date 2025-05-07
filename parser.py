@@ -1,7 +1,7 @@
 import sys
 from lexer import *
 
-#Parser object keeps track of current troken and checks if the code matches the grammar.
+# Parser object keeps track of current troken and checks if the code matches the grammar.
 class Parser:
     def __init__(self, lexer, emitter):
         self.lexer = lexer
@@ -14,32 +14,38 @@ class Parser:
         self.cur_token = None
         self.peek_token = None
         self.next_token()
-        self.next_token() #Call twice to init current and peek
+        self.next_token() # Call twice to init current and peek
 
-    #Return true if the current token matches
+    # Return true if the current token matches
     def check_token(self, kind):
         return kind == self.cur_token.kind
 
-    #Return true if the next token matches
+    # Return true if the next token matches
     def check_peek(self, kind):
         return kind == self.peek_token.kind
 
-    #Try to match current token. If not, error. Advances the current token
-    def match(self, kind):
+    # Try to match current token. If not, error. Advances the current token
+    def match_token(self, kind):
         if not self.check_token(kind):
             self.abort("Expected " + kind.name + ", got " + self.cur_token.kind.name)
         self.next_token()
 
-    #Advances the current token
+    # Advances the current token
     def next_token(self):
         self.cur_token = self.peek_token
         self.peek_token = self.lexer.get_token()
-        #Lexer handles EOF
+        # Lexer handles EOF
+
+    #  Return true if current token is of comparison type
+    def is_comparison_operator(self):
+        return self.check_token(TokenType.GT) or self.check_token(TokenType.GTEQ) or \
+        self.check_token(TokenType.LT) or self.check_token(TokenType.LTEQ) or \
+        self.check_token(TokenType.EQEQ) or self.check_token(TokenType.NOTEQ)
 
     def abort(self, messages):
         sys.exit("Error: " + message)
 
-    #Production rules
+    # Production rules
 
     # program ::= {statement}
     def program(self):
@@ -88,21 +94,20 @@ class Parser:
             self.emitter.emit("if(")
             self.comparison()
 
-            self.match(TokenType.THEN)
+            self.match_token(TokenType.THEN)
             self.nl()
             self.emitter.emit_line("){")
 
             # Zero or more statements in body
             while not self.check_token(TokenType.ENDIF):
-
-        #Newline
-        self.nl()
+                # Newline
+                self.nl()
 
 
     def nl(self):
         print("NEWLINE")
-        #Require at least one newline
-        self.match(TokenType.NEWLINE)
-        #Allow extra newlines too
+        # Require at least one newline
+        self.match_token(TokenType.NEWLINE)
+        # Allow extra newlines too
         while self.check_token(TokenType.NEWLINE):
             self.next_token()
